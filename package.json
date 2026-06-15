@@ -1,0 +1,14 @@
+{
+  "name": "twilio-oncall-forwarding",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "func start",
+    "test": "node --test src/**/*.test.js"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "@azure/identity": "^4.4.0",
+    "@microsoft/microsoft-graph-client": "^3.0.0",
+    "twilio": "^5.3.0"
+  }
+}
