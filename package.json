@@ -1,6 +1,7 @@
 {
   "name": "twilio-oncall-forwarding",
   "version": "1.0.0",
+  "main": "src/functions/*.js",
   "scripts": {
     "start": "func start",
     "test": "node --test src/**/*.test.js"
