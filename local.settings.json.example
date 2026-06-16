@@ -10,8 +10,6 @@
     "AZURE_CLIENT_ID": "your-client-id",
     "AZURE_CLIENT_SECRET": "your-client-secret",
     "CALENDAR_USER_ID": "oncall@yourdomain.com",
-    "ONCALL_EVENT_PREFIX": "On-call",
-    "ONCALL_CONTACTS": "{\"John Smith\":\"+15551234567\",\"Jane Doe\":\"+15559876543\"}",
     "WEBHOOK_BASE_URL": "https://my-func.azurewebsites.net",
     "SKIP_TWILIO_VALIDATION": "true"
   }

@@ -1,76 +1,59 @@
 'use strict';
 
-const { getCurrentOnCallEvent } = require('./calendar');
+const { getCurrentOnCallEvents } = require('./calendar');
 
 /**
  * Resolves the currently on-call contact by:
- *  1. Fetching the current on-call calendar event.
- *  2. Stripping the configured prefix (and optional colon + whitespace) from
- *     the event subject to extract the person's name.
- *  3. Looking up the name (case-insensitive) in the ONCALL_CONTACTS JSON map.
+ *  1. Fetching the calendar events active right now.
+ *  2. Using the event subject as the person's name ("First Last").
+ *  3. Extracting their phone number from the event body/notes, assuming a
+ *     +1 country code when none is given.
  *
  * @returns {Promise<{ name: string, phone: string }|null>}
  */
 async function getOnCallContact() {
-  let event;
+  let events;
   try {
-    event = await getCurrentOnCallEvent();
+    events = await getCurrentOnCallEvents();
   } catch (err) {
     // Treat calendar errors as "no one on call" but surface the warning.
-    console.warn('[oncall] Failed to fetch calendar event:', err.message);
+    console.warn('[oncall] Failed to fetch calendar events:', err.message);
     return null;
   }
 
-  if (!event) return null;
+  for (const event of events) {
+    const name = (event.subject || '').trim();
+    const bodyContent = (event.body && event.body.content) || '';
+    const phone = normalizePhoneNumber(bodyContent);
 
-  const prefix = process.env.ONCALL_EVENT_PREFIX || 'On-call';
-  const subject = event.subject || '';
-
-  // Strip prefix + optional colon + leading/trailing whitespace to get the name.
-  // e.g. "On-call: John Smith" → "John Smith"
-  //      "On-call John Smith"  → "John Smith"
-  const prefixRegex = new RegExp(
-    `^${escapeRegExp(prefix)}[:\\s]*`,
-    'i'
-  );
-  const name = subject.replace(prefixRegex, '').trim();
-
-  if (!name) {
-    console.warn('[oncall] Could not extract name from subject:', subject);
-    return null;
+    if (name && phone) {
+      return { name, phone };
+    }
   }
 
-  let contacts;
-  try {
-    contacts = JSON.parse(process.env.ONCALL_CONTACTS || '{}');
-  } catch (err) {
-    console.warn('[oncall] ONCALL_CONTACTS is not valid JSON:', err.message);
-    return null;
-  }
-
-  // Case-insensitive lookup.
-  const nameLower = name.toLowerCase();
-  const matchedKey = Object.keys(contacts).find(
-    (k) => k.toLowerCase() === nameLower
-  );
-
-  if (!matchedKey) {
-    console.warn('[oncall] No phone number found for on-call person:', name);
-    return null;
-  }
-
-  return { name: matchedKey, phone: contacts[matchedKey] };
+  console.warn('[oncall] No calendar event with a valid name and phone number found.');
+  return null;
 }
 
 /**
- * Escapes special regex characters in a string so it can be used as a literal
- * pattern inside a RegExp constructor.
+ * Extracts a phone number from the (possibly HTML) event body and
+ * normalizes it to E.164, assuming a +1 country code when none is present.
  *
- * @param {string} str
- * @returns {string}
+ * @param {string} rawText
+ * @returns {string|null}
  */
-function escapeRegExp(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function normalizePhoneNumber(rawText) {
+  const text = rawText.replace(/<[^>]*>/g, ' ');
+
+  const withCountryCode = text.match(/\+\d{10,15}/);
+  if (withCountryCode) return withCountryCode[0];
+
+  const digits = text.replace(/\D/g, '');
+
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+
+  return null;
 }
 
 module.exports = { getOnCallContact };
