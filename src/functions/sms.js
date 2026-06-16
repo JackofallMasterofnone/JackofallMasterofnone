@@ -24,7 +24,6 @@ async function smsHandler(request, context) {
     assertTwilioSignature(request, params);
 
     const from = params['From'] || '';
-    const callerName = params['CallerName'] || 'Unknown Caller';
     const body = params['Body'] || '';
 
     const contact = await getOnCallContact();
@@ -33,16 +32,18 @@ async function smsHandler(request, context) {
     const twiml = new MessagingResponse();
 
     if (contact) {
-      context.log(
-        `[sms] Forwarding SMS from ${from} to on-call: ${contact.name} (${contact.phone})`
-      );
-
-      // Forward the message to the on-call person via the Twilio REST API.
       const twilioClient = twilio(
         process.env.TWILIO_ACCOUNT_SID,
         process.env.TWILIO_AUTH_TOKEN
       );
 
+      const callerName = await lookupCallerName(twilioClient, from, context);
+
+      context.log(
+        `[sms] Forwarding SMS from ${callerName} (${from}) to on-call: ${contact.name} (${contact.phone})`
+      );
+
+      // Forward the message to the on-call person via the Twilio REST API.
       await twilioClient.messages.create({
         body: `${callerName} (${from}): ${body}`,
         from: process.env.TWILIO_NUMBER,
@@ -73,6 +74,29 @@ async function smsHandler(request, context) {
 
     context.log.error('[sms] Unhandled error:', err);
     return { status: 500, body: 'Internal server error' };
+  }
+}
+
+/**
+ * Looks up the caller name for a phone number via the Twilio Lookup API.
+ * Falls back to "Unknown Caller" if the lookup fails or returns no name
+ * (common for mobile numbers, which often have no CNAM data).
+ *
+ * @param {import('twilio').Twilio} twilioClient
+ * @param {string} phoneNumber
+ * @param {import('@azure/functions').InvocationContext} context
+ * @returns {Promise<string>}
+ */
+async function lookupCallerName(twilioClient, phoneNumber, context) {
+  try {
+    const lookup = await twilioClient.lookups.v2
+      .phoneNumbers(phoneNumber)
+      .fetch({ fields: 'caller_name' });
+
+    return (lookup.callerName && lookup.callerName.caller_name) || 'Unknown Caller';
+  } catch (err) {
+    context.log.warn('[sms] Caller name lookup failed:', err.message);
+    return 'Unknown Caller';
   }
 }
 
