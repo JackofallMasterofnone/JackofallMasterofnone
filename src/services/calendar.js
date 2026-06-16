@@ -39,18 +39,17 @@ function getGraphClient() {
 }
 
 /**
- * Queries the calendarView of the configured shared mailbox and returns the
- * first event whose subject contains the on-call prefix, or null if none is
- * found.
+ * Queries the calendarView of the configured shared mailbox and returns all
+ * events active right now (subject = on-call person's name, body = their
+ * phone number).
  *
  * The time window is "now" to "now + 60 seconds" so we only surface events
  * that are active at this exact moment.
  *
- * @returns {Promise<object|null>} A Graph calendarEvent object or null.
+ * @returns {Promise<object[]>} An array of Graph calendarEvent objects.
  */
-async function getCurrentOnCallEvent() {
+async function getCurrentOnCallEvents() {
   const calendarUserId = process.env.CALENDAR_USER_ID;
-  const prefix = (process.env.ONCALL_EVENT_PREFIX || 'On-call').toLowerCase();
 
   if (!calendarUserId) {
     throw new Error('Missing required env var: CALENDAR_USER_ID');
@@ -67,18 +66,12 @@ async function getCurrentOnCallEvent() {
     .query({
       startDateTime,
       endDateTime,
-      $select: 'subject,start,end',
+      $select: 'subject,body,start,end',
       $top: 25,
     })
     .get();
 
-  const events = (response && response.value) ? response.value : [];
-
-  const match = events.find(
-    (evt) => evt.subject && evt.subject.toLowerCase().includes(prefix)
-  );
-
-  return match || null;
+  return (response && response.value) ? response.value : [];
 }
 
-module.exports = { getCurrentOnCallEvent };
+module.exports = { getCurrentOnCallEvents };

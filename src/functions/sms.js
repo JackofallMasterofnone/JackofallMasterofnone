@@ -24,6 +24,7 @@ async function smsHandler(request, context) {
     assertTwilioSignature(request, params);
 
     const from = params['From'] || '';
+    const callerName = params['CallerName'] || 'Unknown Caller';
     const body = params['Body'] || '';
 
     const contact = await getOnCallContact();
@@ -43,7 +44,7 @@ async function smsHandler(request, context) {
       );
 
       await twilioClient.messages.create({
-        body: `Fwd from ${from}: ${body}`,
+        body: `${callerName} (${from}): ${body}`,
         from: process.env.TWILIO_NUMBER,
         to: contact.phone,
       });
